@@ -10,56 +10,60 @@ from __future__ import print_function
 import json, sys, os
 from argparse import ArgumentParser
 
-output = {}
-exit_code = 0
+class PasswdParser:
+    def __init__(self):
+        self.output = {}
+        self.exit_code = 0
 
-"""
-Parses a line of /etc/passwd
-"""
-def passwd_line_parser(line, line_number):
-    global exit_code
-    global output
-    segments = line.split(':')
-    if len(segments) <= 4:
-        sys.stderr.write('passwd line #%d invalid\n' % line_number)
-        exit_code = 1
-        return
-    output[segments[0]] = dict(uid = segments[2], full_name = segments[4], groups=[])
+    """
+    Parses a line of /etc/passwd
+    """
+    def passwd_line_parser(self, line, line_number):
+        segments = line.split(':')
+        if len(segments) <= 4:
+            sys.stderr.write('passwd line #%d invalid\n' % line_number)
+            self.exit_code = 1
+            return
+        self.output[segments[0]] = dict(uid = segments[2], full_name = segments[4], groups=[])
 
 
-"""
-Parses a line of /etc/group
-"""
-def group_line_parser(line, line_number):
-    global exit_code
-    global output
-    segments = line.split(':')
-    if len(segments) <= 3:
-        sys.stderr.write('group line #%d invalid\n' % line_number)
-        exit_code = 1
-        return
-    for user_name in segments[3].split(','):
-        if user_name:
-            if user_name in output:
-                output[user_name]['groups'].append(segments[0])
-            else:
-                sys.stderr.write('group line #%d user not found: %s\n' % (line_number, user_name))
-                exit_code = 1
+    """
+    Parses a line of /etc/group
+    """
+    def group_line_parser(self, line, line_number):
+        segments = line.split(':')
+        if len(segments) <= 3:
+            sys.stderr.write('group line #%d invalid\n' % line_number)
+            self.exit_code = 1
+            return
+        for user_name in segments[3].split(','):
+            if user_name:
+                if user_name in self.output:
+                    self.output[user_name]['groups'].append(segments[0])
+                else:
+                    sys.stderr.write('group line #%d user not found: %s\n' % (line_number, user_name))
+                    self.exit_code = 1
 
-"""
-Parses file given the parser for lines
-"""
-def parse_file(name, line_parser):
-    line_number = 0
-    with open(name, 'r') as f:
-        while True:
-            line = f.readline()
-            line_number += 1
-            if not line:
-                break
-            line = line.strip()
-            if line and not line.startswith('#'):
-                line_parser(line, line_number)
+    """
+    Parses file given the parser for lines
+    """
+    def parse_file(self, name, line_parser):
+        line_number = 0
+        with open(name, 'r') as f:
+            while True:
+                line = f.readline()
+                line_number += 1
+                if not line:
+                    break
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    line_parser(line, line_number)
+
+    def main(self, passwd, group, indent):
+        self.parse_file(passwd, self.passwd_line_parser)
+        self.parse_file(group, self.group_line_parser)
+        return self.exit_code, json.dumps(self.output, indent=indent)
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='''
@@ -86,7 +90,6 @@ Check for stderr and return code to see if there are any validation issues
         sys.stderr.write('No such group file: %s\n' % args.group)
         sys.exit(1)
 
-    parse_file(args.passwd, passwd_line_parser)
-    parse_file(args.group, group_line_parser)
-    print(json.dumps(output, indent=args.indent))
+    exit_code, output = PasswdParser().main(args.passwd, args.group, args.indent)
+    print(output)
     sys.exit(exit_code)

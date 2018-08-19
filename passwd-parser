@@ -11,9 +11,10 @@ import json, sys, os
 from argparse import ArgumentParser
 
 class PasswdParser:
-    def __init__(self):
+    def __init__(self, stderr=sys.stderr):
         self.output = {}
         self.exit_code = 0
+        self.stderr = stderr
 
     """
     Parses a line of /etc/passwd
@@ -21,7 +22,7 @@ class PasswdParser:
     def passwd_line_parser(self, line, line_number):
         segments = line.split(':')
         if len(segments) <= 4:
-            sys.stderr.write('passwd line #%d invalid\n' % line_number)
+            self.stderr.write('passwd line #%d invalid\n' % line_number)
             self.exit_code = 1
             return
         self.output[segments[0]] = dict(uid = segments[2], full_name = segments[4], groups=[])
@@ -33,7 +34,7 @@ class PasswdParser:
     def group_line_parser(self, line, line_number):
         segments = line.split(':')
         if len(segments) <= 3:
-            sys.stderr.write('group line #%d invalid\n' % line_number)
+            self.stderr.write('group line #%d invalid\n' % line_number)
             self.exit_code = 1
             return
         for user_name in segments[3].split(','):
@@ -41,7 +42,7 @@ class PasswdParser:
                 if user_name in self.output:
                     self.output[user_name]['groups'].append(segments[0])
                 else:
-                    sys.stderr.write('group line #%d user not found: %s\n' % (line_number, user_name))
+                    self.stderr.write('group line #%d user not found: %s\n' % (line_number, user_name))
                     self.exit_code = 1
 
     """
@@ -60,8 +61,18 @@ class PasswdParser:
                     line_parser(line, line_number)
 
     def main(self, passwd, group, indent):
-        self.parse_file(passwd, self.passwd_line_parser)
-        self.parse_file(group, self.group_line_parser)
+        if not os.path.exists(passwd):
+            self.stderr.write('No such passwd file: %s\n' % args.passwd)
+            self.exit_code = 1
+
+        if not os.path.exists(args.group):
+            self.stderr.write('No such group file: %s\n' % args.group)
+            self.exit_code = 1
+
+        if self.exit_code == 0:
+            self.parse_file(passwd, self.passwd_line_parser)
+            self.parse_file(group, self.group_line_parser)
+
         return self.exit_code, json.dumps(self.output, indent=indent)
 
 
@@ -82,13 +93,6 @@ Check for stderr and return code to see if there are any validation issues
                         help='formats json, omit for single line output')
 
     args = parser.parse_args()
-    if not os.path.exists(args.passwd):
-        sys.stderr.write('No such passwd file: %s\n' % args.passwd)
-        sys.exit(1)
-
-    if not os.path.exists(args.group):
-        sys.stderr.write('No such group file: %s\n' % args.group)
-        sys.exit(1)
 
     exit_code, output = PasswdParser().main(args.passwd, args.group, args.indent)
     print(output)

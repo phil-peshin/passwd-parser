@@ -62,11 +62,11 @@ class PasswdParser:
 
     def main(self, passwd, group, indent):
         if not os.path.exists(passwd):
-            self.stderr.write('No such passwd file: %s\n' % args.passwd)
+            self.stderr.write('No such passwd file: %s\n' % passwd)
             self.exit_code = 1
 
-        if not os.path.exists(args.group):
-            self.stderr.write('No such group file: %s\n' % args.group)
+        if not os.path.exists(group):
+            self.stderr.write('No such group file: %s\n' % group)
             self.exit_code = 1
 
         if self.exit_code == 0:
